@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Energiewandler-Puzzle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: Werkbank links (Wandler-Karten), Schaltplan-Raster rechts; Zeile = Energie hinein, Spalte = Energie heraus */
+:root{
+  --bg:#f3f5f9; --surface:#ffffff; --surface-2:#e8ecf3; --fg:#1b2333; --muted:#5a6578; --line:#cfd6e2;
+  --accent:#2f4fd8; --ok:#178a55; --bad:#c43c2c;
+  --e-el:#5a4fd6; --e-bew:#13906a; --e-wae:#d9482b; --e-licht:#d99a00; --e-chem:#b23a87; --e-lage:#2e7fbf;
+  --font-display:"Baloo 2","Trebuchet MS",system-ui,sans-serif;
+  --font-body:"Atkinson Hyperlegible","Segoe UI",system-ui,sans-serif;
+  --radius:12px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11151d; --surface:#1a202b; --surface-2:#232a37; --fg:#e8ecf4; --muted:#9aa5b8; --line:#323b4b;
+  --accent:#7d93ff; --ok:#3cc488; --bad:#ff7a66;
+  --e-el:#9b93ff; --e-bew:#3cc79a; --e-wae:#ff7a5c; --e-licht:#f5c242; --e-chem:#e57ac0; --e-lage:#5fb0ee;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11151d; --surface:#1a202b; --surface-2:#232a37; --fg:#e8ecf4; --muted:#9aa5b8; --line:#323b4b;
+  --accent:#7d93ff; --ok:#3cc488; --bad:#ff7a66;
+  --e-el:#9b93ff; --e-bew:#3cc79a; --e-wae:#ff7a5c; --e-licht:#f5c242; --e-chem:#e57ac0; --e-lage:#5fb0ee;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:16px;line-height:1.5;padding-inline:16px;padding-block:20px 48px}
+.wrap{max-width:1240px;margin:0 auto;display:grid;gap:20px}
+h1,h2,h3{font-family:var(--font-display);line-height:1.1;margin:0;text-wrap:balance}
+h1{font-size:clamp(2rem,4.5vw,3rem);font-weight:800;letter-spacing:-.01em}
+h2{font-size:1.35rem;font-weight:700}
+p{margin:0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+/* Kopf */
+.head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px 24px;align-items:end}
+.kicker{font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.12em;font-size:.8rem;color:var(--accent)}
+.lead{max-width:62ch;color:var(--muted);margin-top:6px}
+.stats{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat b{font-family:var(--font-display);font-size:1.15rem}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 16px;cursor:pointer;font-weight:700}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.progress{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;grid-column:1/-1}
+.progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--e-el),var(--e-bew),var(--e-licht),var(--e-wae));transition:width .5s}
+
+/* Energieformen-Legende */
+.legend{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 6px;border-radius:999px;background:var(--surface);border:1.5px solid var(--c);font-weight:700;font-size:.92rem}
+.chip svg{width:24px;height:24px;color:var(--c)}
+
+/* Hauptbereich */
+.main{display:grid;grid-template-columns:minmax(0,320px) minmax(0,1fr);gap:20px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;min-width:0}
+.tray-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:4px}
+.hint-text{color:var(--muted);font-size:.9rem;margin-bottom:12px}
+.tray{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tray-empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:24px 8px;border:2px dashed var(--line);border-radius:var(--radius)}
+
+.card{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px 8px;border-radius:10px;background:var(--surface-2);border:2px solid transparent;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;text-align:center;transition:transform .15s,border-color .15s,box-shadow .15s}
+.card svg{width:44px;height:44px;color:var(--fg)}
+.card span{font-weight:700;font-size:.88rem;line-height:1.2}
+.card:hover{transform:translateY(-2px);border-color:var(--line)}
+.card.selected{border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+.card.dragging-src{opacity:.35}
+.card.shake{animation:shake .4s}
+@keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.ghost{position:fixed;z-index:50;pointer-events:none;width:120px;transform:translate(-50%,-50%) rotate(-3deg);box-shadow:0 12px 28px rgba(0,0,0,.25);border-color:var(--accent);background:var(--surface)}
+
+/* Raster */
+.board-scroll{overflow-x:auto;padding-bottom:4px}
+.board{display:grid;grid-template-columns:118px repeat(6,minmax(86px,1fr));gap:6px;min-width:660px}
+.axis-note{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap;font-size:.9rem;color:var(--muted)}
+.axis-note b{color:var(--fg)}
+.corner{display:grid;place-items:center;font-size:.72rem;color:var(--muted);text-align:center;line-height:1.25;padding:4px;border-radius:8px;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--surface-2) 6px 7px)}
+.hdr{display:flex;align-items:center;gap:6px;padding:8px 6px;border-radius:8px;font-weight:700;font-size:.82rem;line-height:1.15;color:var(--c);background:color-mix(in srgb,var(--c) 10%,var(--surface));border:1.5px solid color-mix(in srgb,var(--c) 40%,transparent);transition:background .15s}
+.hdr svg{width:22px;height:22px;flex:none}
+.hdr.col{flex-direction:column;justify-content:center;text-align:center}
+.hdr.lit{background:color-mix(in srgb,var(--c) 26%,var(--surface))}
+.cell{min-height:92px;border-radius:8px;border:1.5px dashed var(--line);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px;cursor:pointer;position:relative;transition:background .15s,border-color .15s}
+.cell:hover,.cell.over{border-color:var(--accent);border-style:solid;background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
+.cell.diag{background:repeating-linear-gradient(135deg,var(--surface-2) 0 6px,transparent 6px 12px);border-style:solid;border-color:transparent;cursor:default}
+.cell.tip{border-color:var(--e-licht);border-style:solid;background:color-mix(in srgb,var(--e-licht) 12%,var(--surface))}
+.cell.filled{border-style:solid;border-color:transparent;background:linear-gradient(135deg,color-mix(in srgb,var(--cin) 22%,var(--surface)),color-mix(in srgb,var(--cout) 22%,var(--surface)));cursor:pointer}
+.cell.filled svg{width:38px;height:38px}
+.cell.filled span{font-size:.74rem;font-weight:700;text-align:center;line-height:1.15}
+.cell.pop{animation:pop .45s}
+@keyframes pop{0%{transform:scale(.7)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+.cell.wrong{animation:flash .5s}
+@keyframes flash{0%,100%{background:var(--surface)}40%{background:color-mix(in srgb,var(--bad) 22%,var(--surface))}}
+
+/* Rückmeldung */
+.feedback{margin-top:14px;border-radius:var(--radius);padding:14px 16px;background:var(--surface-2);border-left:5px solid var(--muted);min-height:64px}
+.feedback.ok{border-left-color:var(--ok)}
+.feedback.bad{border-left-color:var(--bad)}
+.feedback .fb-title{font-family:var(--font-display);font-weight:700;font-size:1.1rem}
+.feedback .chain{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;font-weight:700}
+.feedback .chain i{font-style:normal;padding:1px 10px;border-radius:999px;color:var(--surface);background:var(--c)}
+
+.done{display:none;text-align:center;padding:24px 16px}
+.done.show{display:block}
+.done h2{font-size:1.8rem}
+.done p{color:var(--muted);margin:6px auto 14px;max-width:56ch}
+
+.note{font-size:.9rem;color:var(--muted);max-width:75ch}
+.note b{color:var(--fg)}
+
+@media (max-width:860px){
+  .main{grid-template-columns:1fr}
+  .tray{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}
+  .head{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+<style>body{margin:0}</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="head">
+    <div>
+      <div class="kicker">Physik · Klasse 7 · Energie</div>
+      <h1>Energiewandler-Puzzle</h1>
+      <p class="lead">Ein Energiewandler nimmt eine Energieform auf und gibt eine andere ab. Ziehe jeden Wandler an die Stelle im Raster, wo sich die <b>Energie hinein</b> (Zeile) und die <b>Energie heraus</b> (Spalte) kreuzen.</p>
+    </div>
+    <div class="stats" aria-live="polite">
+      <div class="stat">Eingeordnet <b id="sPlaced">0</b> / <b id="sTotal">20</b></div>
+      <div class="stat">Fehlversuche <b id="sWrong">0</b></div>
+      <button class="btn" id="btnTip" type="button">Tipp</button>
+      <button class="btn" id="btnReset" type="button">Neu starten</button>
+    </div>
+    <div class="progress"><span id="bar"></span></div>
+  </header>
+
+  <div class="legend" id="legend" aria-label="Energieformen"></div>
+
+  <div class="main">
+    <section class="panel" aria-labelledby="trayTitle">
+      <div class="tray-head"><h2 id="trayTitle">Werkbank</h2><span class="hint-text" id="trayCount"></span></div>
+      <p class="hint-text">Karte ziehen – oder antippen und dann ein Feld im Raster antippen.</p>
+      <div class="tray" id="tray"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="boardTitle">
+      <h2 id="boardTitle" style="margin-bottom:8px">Umwandlungs-Raster</h2>
+      <div class="axis-note"><span>Zeile ⟶ <b>Energie geht hinein</b></span><span>Spalte ⟶ <b>Energie kommt heraus</b></span></div>
+      <div class="board-scroll"><div class="board" id="board"></div></div>
+      <div class="feedback" id="feedback" aria-live="polite">
+        <div class="fb-title">Los geht's!</div>
+        <p>Wähle einen Wandler aus der Werkbank. Überlege zuerst: Welche Energie bekommt das Gerät? Und welche Energie gibt es ab, wofür benutzen wir es?</p>
+      </div>
+      <div class="done" id="done">
+        <h2>Alle Wandler eingeordnet!</h2>
+        <p id="doneText"></p>
+        <button class="btn" id="btnAgain" type="button">Noch einmal spielen</button>
+      </div>
+    </section>
+  </div>
+
+  <p class="note"><b>Hinweis:</b> Fast jeder Wandler gibt nebenbei auch etwas Wärme ab – ein Motor wird zum Beispiel warm. Ordne jeden Wandler nach der Energieform ein, für die wir ihn <b>eigentlich benutzen</b>. Die schraffierten Felder bleiben frei: Dort würde keine Umwandlung stattfinden.</p>
+</div>
+
+<script>
+const S = 'fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"';
+const svg = (inner, vb = 48) => `<svg viewBox="0 0 ${vb} ${vb}" ${S} aria-hidden="true">${inner}</svg>`;
+
+const FORMS = [
+  {id:'el',   name:'Elektrische Energie', short:'elektrische Energie', icon:'<path d="M27 4L12 27h11l-3 17 16-24H25z"/>'},
+  {id:'bew',  name:'Bewegungs­energie', short:'Bewegungsenergie', icon:'<circle cx="30" cy="26" r="11"/><path d="M30 26l6-5"/><path d="M4 18h10M2 26h10M4 34h10"/>'},
+  {id:'wae',  name:'Wärme­energie', short:'Wärmeenergie', icon:'<path d="M20 30V9a4 4 0 0 1 8 0v21a8 8 0 1 1-8 0z"/><path d="M24 22v12"/><path d="M34 12h6M34 19h4M34 26h6"/>'},
+  {id:'licht',name:'Licht­energie', short:'Lichtenergie', icon:'<circle cx="24" cy="24" r="8"/><path d="M24 4v6M24 38v6M4 24h6M38 24h6M10 10l4 4M34 34l4 4M38 10l-4 4M14 34l-4 4"/>'},
+  {id:'chem', name:'Chemische Energie', short:'chemische Energie', icon:'<path d="M19 6h10M21 6v12L10 38a3 3 0 0 0 3 4h22a3 3 0 0 0 3-4L27 18V6"/><path d="M15 30h18"/>'},
+  {id:'lage', name:'Lage­energie', short:'Lageenergie', icon:'<path d="M4 42l14-22 8 10 6-8 12 20z"/><path d="M36 16V4M31 9l5-5 5 5"/>'},
+];
+const F = Object.fromEntries(FORMS.map(f => [f.id, f]));
+
+const WANDLER = [
+  {name:'Elektromotor', in:'el', out:'bew', why:'Der Motor bekommt Strom und dreht damit eine Achse.', icon:'<rect x="6" y="14" width="26" height="20" rx="4"/><circle cx="19" cy="24" r="5"/><path d="M32 24h10M12 34v6M26 34v6"/>'},
+  {name:'Fahrrad­dynamo', in:'bew', out:'el', why:'Das drehende Rad treibt den Dynamo an, er liefert Strom für die Lampe.', icon:'<circle cx="18" cy="30" r="12"/><circle cx="18" cy="30" r="2"/><rect x="30" y="6" width="10" height="18" rx="4"/><path d="M35 24v4"/>'},
+  {name:'LED-Lampe', in:'el', out:'licht', why:'Die LED wird mit Strom versorgt und leuchtet.', icon:'<path d="M24 5a12 12 0 0 0-7 22v6h14v-6A12 12 0 0 0 24 5z"/><path d="M18 38h12M20 43h8"/>'},
+  {name:'Wasser­kocher', in:'el', out:'wae', why:'Strom fließt durch eine Heizwendel, das Wasser wird heiß.', icon:'<path d="M12 42h22l-2-26H14z"/><path d="M34 20c7 0 7 14 0 14"/><path d="M14 16l-6-5"/><path d="M19 10c0-3 3-3 3-6M26 10c0-3 3-3 3-6"/>'},
+  {name:'Solarzelle', in:'licht', out:'el', why:'Sonnenlicht fällt auf die Solarzelle, sie liefert Strom.', icon:'<path d="M6 34l8-20h28l-8 20z"/><path d="M10 24h28M21 14l-4 20M31 14l-4 20"/><path d="M24 34v8M16 42h16"/>'},
+  {name:'Lichtmühle', in:'licht', out:'bew', why:'Licht trifft auf die Flügel, das Flügelrad beginnt sich zu drehen.', icon:'<path d="M24 4C14 4 10 12 10 20c0 9 6 13 6 20h16c0-7 6-11 6-20 0-8-4-16-14-16z"/><path d="M24 12v20M14 22h20"/><path d="M24 12h5v5M14 22v5h5"/>'},
+  {name:'Handy-Akku wird geladen', in:'el', out:'chem', why:'Beim Laden wird elektrische Energie im Akku als chemische Energie gespeichert.', icon:'<rect x="14" y="4" width="20" height="38" rx="4"/><path d="M26 12l-5 9h6l-5 9"/><path d="M24 42v4"/>'},
+  {name:'Batterie', in:'chem', out:'el', why:'In der Batterie laufen chemische Vorgänge ab, dabei liefert sie Strom.', icon:'<rect x="16" y="10" width="16" height="32" rx="3"/><path d="M21 6h6v4h-6z"/><path d="M24 18v8M20 22h8M20 34h8"/>'},
+  {name:'Pflanze', in:'licht', out:'chem', why:'Bei der Fotosynthese baut die Pflanze mit Licht energiereiche Stoffe (Zucker) auf.', icon:'<path d="M24 42V20"/><path d="M24 28C14 28 10 22 10 14c8 0 14 4 14 14z"/><path d="M24 22c0-8 6-14 14-14 0 8-6 14-14 14z"/><path d="M14 42h20"/>'},
+  {name:'Knicklicht', in:'chem', out:'licht', why:'Nach dem Knicken mischen sich zwei Stoffe und leuchten.', icon:'<path d="M15 39L33 9" stroke-width="7"/><path d="M7 20l5 2M37 37l-4-4M42 22l-5 1M11 8l3 4"/>'},
+  {name:'Gasherd', in:'chem', out:'wae', why:'Gas verbrennt in der Flamme und erhitzt den Topf.', icon:'<path d="M24 6c4 6 10 9 10 17a10 10 0 0 1-20 0c0-5 4-7 4-11 3 2 4 4 4 6 2-3 2-7 2-12z"/><path d="M6 42h36M12 42v-4h24v4"/>'},
+  {name:'Radfahrerin', in:'chem', out:'bew', why:'Die Muskeln nutzen die Energie aus der Nahrung und treiben das Fahrrad an.', icon:'<circle cx="11" cy="33" r="8"/><circle cx="37" cy="33" r="8"/><path d="M11 33l8-14h13l5 14M19 19l6 14H11M17 14h6M31 13h5"/>'},
+  {name:'Dampf­maschine', in:'wae', out:'bew', why:'Heißer Dampf drückt einen Kolben, der ein Schwungrad dreht.', icon:'<circle cx="33" cy="30" r="10"/><circle cx="33" cy="30" r="2"/><rect x="3" y="24" width="14" height="11" rx="2"/><path d="M17 29h16"/><path d="M7 18c0-4 4-4 4-8M13 18c0-4 4-4 4-8"/>'},
+  {name:'Sonnen­kollektor', in:'licht', out:'wae', why:'Das Sonnenlicht erwärmt das Wasser in den Rohren auf dem Dach.', icon:'<circle cx="11" cy="11" r="5"/><path d="M11 2v2M2 11h2M4.6 4.6l1.5 1.5M17.4 4.6l-1.5 1.5"/><path d="M16 42l6-18h22l-6 18z"/><path d="M27 24l-6 18M33 24l-6 18M39 24l-6 18"/>'},
+  {name:'Fahrrad­bremse', in:'bew', out:'wae', why:'Die Bremse reibt am Rad, das Rad wird langsamer und die Bremse warm.', icon:'<circle cx="21" cy="26" r="14"/><circle cx="21" cy="26" r="3"/><path d="M39 14v24" stroke-width="5"/><path d="M44 8c2-2 0-4 2-6M44 20c2-2 0-4 2-6"/>'},
+  {name:'Achterbahn fährt bergab', in:'lage', out:'bew', why:'Oben hat der Wagen viel Lageenergie, beim Hinunterfahren wird er schnell.', icon:'<path d="M3 8c12 0 14 32 30 32h12"/><path d="M18 18l9 6-4 6-9-6z"/><circle cx="16" cy="28" r="1.5"/>'},
+  {name:'Ball wird hochgeworfen', in:'bew', out:'lage', why:'Der schnelle Ball steigt nach oben und wird langsamer, dabei gewinnt er Höhe.', icon:'<circle cx="24" cy="11" r="7"/><path d="M24 44V24M17 31l7-7 7 7"/>'},
+  {name:'Wasser­kraftwerk am Stausee', in:'lage', out:'el', why:'Das hoch gestaute Wasser fällt hinunter, treibt eine Turbine und erzeugt Strom.', icon:'<path d="M3 14c4 2 6-2 10 0s6-2 10 0"/><path d="M3 22h20"/><path d="M23 6v36h22"/><circle cx="35" cy="33" r="5"/><path d="M23 33h7"/>'},
+  {name:'Glühendes Eisen beim Schmied', in:'wae', out:'licht', why:'Sehr heißes Eisen beginnt rot-orange zu leuchten.', icon:'<path d="M6 32h30l6 6H12z"/><path d="M14 24l2-6M24 24v-8M34 24l-2-6"/>'},
+  {name:'Elektrischer Kran', in:'el', out:'lage', why:'Ein Elektromotor zieht die Last nach oben, sie gewinnt Lageenergie.', icon:'<path d="M10 44V8h30M10 15l7-7M38 8v13"/><rect x="33" y="21" width="10" height="8"/><path d="M4 44h14"/>'},
+];
+
+const $ = id => document.getElementById(id);
+const tray = $('tray'), board = $('board'), fb = $('feedback');
+let state, selected = null, wrong = 0, placed = 0;
+
+// Legende
+$('legend').innerHTML = FORMS.map(f => `<span class="chip" style="--c:var(--e-${f.id})">${svg(f.icon)}${f.name.replace(/­/g,'')}</span>`).join('');
+
+function buildBoard(){
+  let h = `<div class="corner">hinein ↓<br>heraus →</div>`;
+  FORMS.forEach(f => h += `<div class="hdr col" data-col="${f.id}" style="--c:var(--e-${f.id})">${svg(f.icon)}<span>${f.name}</span></div>`);
+  FORMS.forEach(r => {
+    h += `<div class="hdr" data-row="${r.id}" style="--c:var(--e-${r.id})">${svg(r.icon)}<span>${r.name}</span></div>`;
+    FORMS.forEach(c => {
+      if (r.id === c.id) h += `<div class="cell diag" aria-hidden="true"></div>`;
+      else h += `<button type="button" class="cell" data-in="${r.id}" data-out="${c.id}" aria-label="${r.short} wird zu ${c.short}"></button>`;
+    });
+  });
+  board.innerHTML = h;
+}
+
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function start(){
+  state = shuffle(WANDLER.map((w,i)=>({...w, idx:i, done:false})));
+  wrong = 0; placed = 0; selected = null;
+  buildBoard(); renderTray(); updateStats();
+  $('done').classList.remove('show'); fb.hidden = false;
+  setFeedback('', "Los geht's!", 'Wähle einen Wandler aus der Werkbank. Überlege zuerst: Welche Energie bekommt das Gerät? Und welche Energie gibt es ab, wofür benutzen wir es?');
+}
+
+function renderTray(){
+  const open = state.filter(w => !w.done);
+  tray.innerHTML = open.length ? open.map(w =>
+    `<button type="button" class="card" data-idx="${w.idx}" aria-pressed="false">${svg(w.icon)}<span>${w.name}</span></button>`).join('')
+    : `<div class="tray-empty">Die Werkbank ist leer. Super!</div>`;
+  $('trayCount').textContent = open.length ? `${open.length} übrig` : '';
+}
+
+function updateStats(){
+  $('sPlaced').textContent = placed; $('sTotal').textContent = WANDLER.length; $('sWrong').textContent = wrong;
+  $('bar').style.width = (placed / WANDLER.length * 100) + '%';
+}
+
+function setFeedback(kind, title, body){
+  fb.className = 'feedback' + (kind ? ' ' + kind : '');
+  fb.innerHTML = `<div class="fb-title">${title}</div><div>${body}</div>`;
+}
+const chain = w => `<span class="chain"><i style="--c:var(--e-${w.in})">${F[w.in].short}</i> → <i style="--c:var(--e-${w.out})">${F[w.out].short}</i></span>`;
+
+function select(idx){
+  clearTip();
+  selected = (selected === idx) ? null : idx;
+  tray.querySelectorAll('.card').forEach(c => {
+    const on = +c.dataset.idx === selected;
+    c.classList.toggle('selected', on); c.setAttribute('aria-pressed', on);
+  });
+  if (selected !== null) {
+    const w = WANDLER[selected];
+    setFeedback('', w.name.replace(/­/g,'') + ' ausgewählt', 'Tippe jetzt das passende Feld im Raster an.');
+  }
+}
+
+function tryPlace(idx, cell){
+  if (!cell || cell.classList.contains('filled') || cell.classList.contains('diag')) return false;
+  const w = WANDLER[idx];
+  const ci = cell.dataset.in, co = cell.dataset.out;
+  clearTip();
+  if (ci === w.in && co === w.out){
+    const item = state.find(s => s.idx === idx); item.done = true; placed++;
+    cell.classList.add('filled','pop');
+    cell.style.setProperty('--cin', `var(--e-${w.in})`); cell.style.setProperty('--cout', `var(--e-${w.out})`);
+    cell.innerHTML = `${svg(w.icon)}<span>${w.name}</span>`;
+    cell.setAttribute('aria-label', `${w.name.replace(/­/g,'')}: ${F[w.in].short} wird zu ${F[w.out].short}`);
+    cell.dataset.idx = idx;
+    selected = null; renderTray(); updateStats();
+    setFeedback('ok', 'Richtig! ' + w.name.replace(/­/g,''), `${chain(w)}<p style="margin-top:6px">${w.why}</p>`);
+    if (placed === WANDLER.length) finish();
+    return true;
+  }
+  wrong++; updateStats();
+  cell.classList.remove('wrong'); void cell.offsetWidth; cell.classList.add('wrong');
+  const card = tray.querySelector(`.card[data-idx="${idx}"]`);
+  if (card){ card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake'); }
+  let hint;
+  if (ci === w.in) hint = `Die Energie, die <b>hineingeht</b>, stimmt schon (${F[ci].short}). Überlege noch einmal: Welche Energie <b>kommt heraus</b>?`;
+  else if (co === w.out) hint = `Die Energie, die <b>herauskommt</b>, stimmt schon (${F[co].short}). Aber welche Energie <b>geht hinein</b>?`;
+  else hint = `Hier würde ${F[ci].short} zu ${F[co].short}. Frag dich: Was „bekommt“ das Gerät, und was „gibt“ es ab?`;
+  setFeedback('bad', 'Noch nicht ganz – ' + w.name.replace(/­/g,''), hint);
+  return false;
+}
+
+function finish(){
+  const t = wrong === 0 ? 'Ohne einen einzigen Fehlversuch – ausgezeichnet!' :
+    `Du hast ${wrong} Fehlversuch${wrong===1?'':'e'} gebraucht. Schau dir das fertige Raster noch einmal an: Tippe ein Feld an, um die Erklärung zu lesen.`;
+  $('doneText').textContent = t;
+  $('done').classList.add('show');
+  setFeedback('ok', 'Geschafft!', 'Fällt dir etwas auf? Manche Energieformen tauchen in vielen Zeilen auf. Elektrische Energie kann man in fast alles umwandeln, deshalb ist sie so praktisch.');
+}
+
+function clearTip(){ board.querySelectorAll('.cell.tip').forEach(c=>c.classList.remove('tip')); }
+
+$('btnTip').addEventListener('click', () => {
+  if (selected === null){ setFeedback('', 'Tipp', 'Wähle zuerst einen Wandler aus der Werkbank aus.'); return; }
+  const w = WANDLER[selected];
+  clearTip();
+  board.querySelectorAll(`.cell[data-in="${w.in}"]:not(.filled)`).forEach(c=>c.classList.add('tip'));
+  setFeedback('', 'Tipp', `Die richtige Zeile ist markiert: Bei „${w.name.replace(/­/g,'')}“ geht <b>${F[w.in].short}</b> hinein. Welche Energie kommt heraus?`);
+});
+$('btnReset').addEventListener('click', start);
+$('btnAgain').addEventListener('click', start);
+
+// Zeilen/Spalten beim Überfahren hervorheben
+function litFor(cell){
+  board.querySelectorAll('.hdr.lit').forEach(h=>h.classList.remove('lit'));
+  if (!cell || !cell.dataset.in) return;
+  board.querySelector(`[data-row="${cell.dataset.in}"]`).classList.add('lit');
+  board.querySelector(`[data-col="${cell.dataset.out}"]`).classList.add('lit');
+}
+board.addEventListener('pointerover', e => litFor(e.target.closest('.cell')));
+board.addEventListener('pointerleave', () => litFor(null));
+
+// Klick auf Feld
+board.addEventListener('click', e => {
+  const cell = e.target.closest('.cell'); if (!cell) return;
+  if (cell.classList.contains('filled')){
+    const w = WANDLER[+cell.dataset.idx];
+    setFeedback('ok', w.name.replace(/­/g,''), `${chain(w)}<p style="margin-top:6px">${w.why}</p>`);
+    return;
+  }
+  if (selected === null){ setFeedback('', 'Erst eine Karte wählen', 'Tippe zuerst einen Wandler in der Werkbank an.'); return; }
+  tryPlace(selected, cell);
+});
+
+// Ziehen & Ablegen (Maus und Touch)
+let drag = null;
+tray.addEventListener('pointerdown', e => {
+  const card = e.target.closest('.card'); if (!card || e.button > 0) return;
+  drag = {card, idx:+card.dataset.idx, x:e.clientX, y:e.clientY, ghost:null, over:null, id:e.pointerId};
+  card.setPointerCapture(e.pointerId);
+});
+tray.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  if (!drag.ghost){
+    if (Math.hypot(e.clientX-drag.x, e.clientY-drag.y) < 6) return;
+    drag.ghost = drag.card.cloneNode(true);
+    drag.ghost.classList.add('ghost'); drag.ghost.classList.remove('selected');
+    document.body.appendChild(drag.ghost);
+    drag.card.classList.add('dragging-src');
+  }
+  drag.ghost.style.left = e.clientX + 'px'; drag.ghost.style.top = e.clientY + 'px';
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const cell = el && el.closest('.cell:not(.diag):not(.filled)');
+  if (cell !== drag.over){ drag.over && drag.over.classList.remove('over'); cell && cell.classList.add('over'); drag.over = cell; litFor(cell); }
+});
+function endDrag(e){
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag; drag = null;
+  if (!d.ghost){ select(d.idx); return; }
+  d.ghost.remove(); d.card.classList.remove('dragging-src');
+  d.over && d.over.classList.remove('over'); litFor(null);
+  if (d.over){ selected = null; tryPlace(d.idx, d.over); }
+}
+tray.addEventListener('pointerup', endDrag);
+tray.addEventListener('pointercancel', e => { if (drag && drag.ghost){ drag.ghost.remove(); drag.card.classList.remove('dragging-src'); drag.over && drag.over.classList.remove('over'); } drag = null; });
+// Tastatur: Enter/Leertaste auf Karte wählt sie aus
+tray.addEventListener('keydown', e => {
+  const card = e.target.closest('.card');
+  if (card && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); select(+card.dataset.idx); }
+});
+
+start();
+</script>
+
+</body>
+</html>
